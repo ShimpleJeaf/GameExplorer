@@ -24,7 +24,6 @@ private:
     QString createNewName();
     QIcon iconFromExe(QString exe);
 
-
 private slots:
     void slotOnNewAction();
     void slotOnItemChanged(QStandardItem* item);
@@ -35,6 +34,7 @@ private:
     QStandardItemModel *model;
     QAction *newAction;
     QAction *delAction;
+    QAction* openPathAction;
     QFileDialog* fileDialog;
     int exepathRow;
 };

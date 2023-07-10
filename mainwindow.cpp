@@ -51,8 +51,11 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->tableView->setContextMenuPolicy(Qt::ContextMenuPolicy::ActionsContextMenu);
     ui->tableView->addAction(newAction = new QAction("新增"));
     ui->tableView->addAction(delAction = new QAction("删除"));
+    ui->tableView->addAction(openPathAction = new QAction("打开所在文件夹"));
     ui->tableView->horizontalHeader()->setStretchLastSection(true);
     ui->tableView->setSortingEnabled(true);
+    ui->tableView->setColumnWidth(NameCol, 260);
+    ui->tableView->setColumnWidth(EnNameCol, 260);
     ui->tableView->setColumnWidth(ExePathCol, 800);
     ui->tableView->setEditTriggers(QTableView::EditTrigger::NoEditTriggers);
     showMaximized();
@@ -81,6 +84,15 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(delAction, &QAction::triggered, this, &MainWindow::slotOnDelAction);
     // 更改
     connect(model, &QStandardItemModel::itemChanged, this, &MainWindow::slotOnItemChanged);
+    // 打开所在文件夹
+    connect(openPathAction, &QAction::triggered, this, [=](){
+        QModelIndex index = ui->tableView->currentIndex();
+        if (!index.isValid())
+            return;
+        int row = index.row();
+        QFileInfo info(model->item(row, ExePathCol)->text());
+        QDesktopServices::openUrl("file:///" + info.path());
+    });
     // 从数据库加载数据
     connect(Database::instance(), &Database::dataLoaded, this, [=](const Data& d) {
         static const double rowCount = Database::instance()->rowCount();
@@ -88,16 +100,21 @@ MainWindow::MainWindow(QWidget *parent) :
         n++;
         progress->setValue(std::ceil(n/rowCount));
         updateRow(QStringList{d.id, "", d.name, d.enname, d.describe, d.exepath, d.comment});
-        if (n == rowCount)
+        if (n == rowCount) {
             progress->close();
+            ui->tableView->sortByColumn(NameCol, Qt::SortOrder::AscendingOrder);
+        }
     });
     // 表格双击
     connect(ui->tableView, &QTableView::doubleClicked, this, [=](const QModelIndex &index) {
         switch (index.column()) {
         case IconCol: {
             QString exepath = model->item(index.row(), ExePathCol)->text();
-            QProcess process(this);
-            process.startDetached(exepath);
+//            QProcess process;
+            QFileInfo info(exepath);
+//            process.setWorkingDirectory(info.path());
+//            process.startDetached(exepath);
+            QProcess::startDetached(exepath, QStringList(), info.path());
             break;
         }
         case NameCol:
@@ -122,7 +139,24 @@ MainWindow::MainWindow(QWidget *parent) :
             return;
         model->item(exepathRow, ExePathCol)->setText(selected.front());
     });
+    // 搜索
+    connect(ui->searchEdit, &QLineEdit::textChanged, this, [=](const QString& str) {
+        QList<QStandardItem*> itemList;
+        itemList.append(model->findItems(str, Qt::MatchFlag::MatchContains, NameCol));
+        itemList.append(model->findItems(str, Qt::MatchFlag::MatchContains, EnNameCol));
+        itemList.append(model->findItems(str, Qt::MatchFlag::MatchContains, ExePathCol));
+        QSet<int> rowSet;
+        for(QStandardItem* item : itemList) {
+            rowSet.insert(item->row());
+        }
+        QList<int> rowList = rowSet.toList();
+        qSort(rowList);
+        for (int i = 0; i < rowList.count(); ++i) {
+            model->insertRow(i, model->takeRow(rowList[i]));
+        }
+    });
 
+    ////////////////////////////////////////////////////////////
     Database::instance()->loadAllData();
 }
 
@@ -142,6 +176,7 @@ void MainWindow::updateRow(QStringList content)
     QStandardItem* iconitem = new QStandardItem();
 //    iconitem->setIcon(iconFromExe(content[ExePathCol]));
     iconitem->setText("开始游戏");
+    iconitem->setTextAlignment(Qt::AlignCenter);
     if (!QFile(content[ExePathCol]).exists())
         iconitem->setBackground(QBrush(InvalidExepathColor));
     else
@@ -187,7 +222,9 @@ QIcon MainWindow::iconFromExe(QString exe)
             return QIcon(QtWin::fromHICON(hicon));
     }
 #endif
-    return QIcon();
+    QPixmap pix(60, 60);
+    pix.fill();
+    return QIcon(pix);
 }
 
 void MainWindow::slotOnNewAction()
@@ -217,7 +254,7 @@ void MainWindow::slotOnItemChanged(QStandardItem *item)
     if (item->index().column() == ExePathCol) {
         QIcon icon = iconFromExe(item->text());
         model->item(item->index().row(), NameCol)->setIcon(icon);
-        model->item(item->index().row(), IconCol)->setIcon(icon);
+//        model->item(item->index().row(), IconCol)->setIcon(icon);
         if (!QFile(item->text()).exists())
             model->item(item->index().row(), IconCol)->setBackground(QBrush(InvalidExepathColor));
         else
@@ -235,9 +272,8 @@ void MainWindow::slotOnDelAction()
         QMessageBox::information(this, "", "未选择游戏");
         return;
     }
-    if (QMessageBox::information(this, "", "确认删除该记录？") != QMessageBox::StandardButton::Ok)
+    if (QMessageBox::question(this, "", "确认删除该记录？", QMessageBox::StandardButtons(QMessageBox::Yes | QMessageBox::Cancel), QMessageBox::Cancel) != QMessageBox::StandardButton::Yes)
         return;
-
     int curRow = curindex.row();
     QString id = model->item(curRow, IdCol)->text();
     if (!Database::instance()->remove(id)) {

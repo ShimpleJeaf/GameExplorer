@@ -15,6 +15,8 @@
 #include <QFileDialog>
 #include <QUuid>
 #include <QProcess>
+#include <QDesktopServices>
+#include <QUrl>
 #include <cmath>
 
 #endif // PUBHEADER_H
