@@ -12,9 +12,17 @@ bool Database::update(const Data& data)
 {
     QString presql;
     if (exist(data.name))
-        presql = "UPDATE games SET name=:name, enname=:enname, exepath=:exepath, describe=:describe, comment=:comment, updatetime=:updatetime where id=:id";
+        presql = "UPDATE games SET "
+                 "name=:name, "
+                 "enname=:enname, "
+                 "exepath=:exepath, "
+                 "describe=:describe, "
+                 "comment=:comment, "
+                 "updatetime=:updatetime "
+                 "lastplaytime=:lastplaytime "
+                 "where id=:id";
     else
-        presql = "INSERT INTO games VALUES (:id, :name, :enname, :exepath, :describe, :comment, :updatetime)";
+        presql = "INSERT INTO games VALUES (:id, :name, :enname, :exepath, :describe, :comment, :updatetime, :lastplaytime)";
     QSqlQuery query(db);
     query.prepare(presql);
     query.bindValue(":name", data.name);
@@ -22,7 +30,8 @@ bool Database::update(const Data& data)
     query.bindValue(":exepath", data.exepath);
     query.bindValue(":describe", data.describe);
     query.bindValue(":comment", data.comment);
-    query.bindValue(":updatetime", QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss"));
+    query.bindValue(":updatetime", QDateTime::currentDateTime().toString(TimeFormat));
+    query.bindValue(":lastplaytime", data.lastplaytime);
     query.bindValue(":id", data.id);
     if (!query.exec()) {
         qDebug() << query.lastError();
@@ -94,6 +103,7 @@ void Database::loadAllData()
         d.exepath = query.value("exepath").toString();
         d.describe = query.value("describe").toString();
         d.comment = query.value("comment").toString();
+        d.lastplaytime = query.value("lastplaytime").toString();
         emit dataLoaded(d);
     }
 }
@@ -124,7 +134,8 @@ void Database::createTable()
         exepath         STRING, \
         describe        STRING, \
         comment         STRING, \
-        updatetime      DATETIME \
+        updatetime      DATETIME, \
+        lastplaytime    DATETIME \
         );";
     QSqlQuery query(sql, db);
     if (!query.exec()) {

@@ -19,4 +19,6 @@
 #include <QUrl>
 #include <cmath>
 
+const QString TimeFormat = "yyyy-MM-dd HH:mm:ss";
+
 #endif // PUBHEADER_H

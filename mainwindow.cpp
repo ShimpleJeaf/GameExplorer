@@ -16,6 +16,7 @@ enum Col {
     DescribeCol,
     ExePathCol,
     CommentCol,
+    LastPlayTimeCol,
     ColNum
 };
 
@@ -30,7 +31,8 @@ const QMap<int, QString> ColNO2ColNameMap {
     std::make_pair(EnNameCol, "enname"),
     std::make_pair(DescribeCol, "describe"),
     std::make_pair(ExePathCol, "exepath"),
-    std::make_pair(CommentCol, "comment")
+    std::make_pair(CommentCol, "comment"),
+    std::make_pair(LastPlayTimeCol, "lastplaytime")
 };
 
 MainWindow::MainWindow(QWidget *parent) :
@@ -43,7 +45,7 @@ MainWindow::MainWindow(QWidget *parent) :
     setWindowTitle("Game Explorer");
     // 表头
     QStringList headerLabels;
-    headerLabels << "id" << "图标" << "名字" << "英文名" << "简介" << "执行文件" << "备注";
+    headerLabels << "id" << "图标" << "名字" << "英文名" << "简介" << "执行文件" << "备注" << "上次游玩时间";
     ui->tableView->setModel(model = new QStandardItemModel(this));
     model->setHorizontalHeaderLabels(headerLabels);
     ui->tableView->hideColumn(IdCol);
@@ -76,8 +78,8 @@ MainWindow::MainWindow(QWidget *parent) :
 
 //    for (int i=0;i<900;++i)
 //        slotOnNewAction();
-
-    // 连接信号槽 //////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////
+    // 连接信号槽
     // 新建
     connect(newAction, &QAction::triggered, this, &MainWindow::slotOnNewAction);
     // 删除
@@ -99,16 +101,22 @@ MainWindow::MainWindow(QWidget *parent) :
         static double n = 0;
         n++;
         progress->setValue(std::ceil(n/rowCount));
-        updateRow(QStringList{d.id, "", d.name, d.enname, d.describe, d.exepath, d.comment});
+        updateRow(QStringList{d.id, "", d.name, d.enname, d.describe, d.exepath, d.comment, d.lastplaytime});
         if (n == rowCount) {
             progress->close();
-            ui->tableView->sortByColumn(NameCol, Qt::SortOrder::AscendingOrder);
+            ui->tableView->sortByColumn(LastPlayTimeCol, Qt::SortOrder::DescendingOrder);
         }
     });
     // 表格双击
     connect(ui->tableView, &QTableView::doubleClicked, this, [=](const QModelIndex &index) {
         switch (index.column()) {
         case IconCol: {
+            QString curtime = QDateTime::currentDateTime().toString(TimeFormat);
+            if (!Database::instance()->update(model->item(index.row(), IdCol)->text(), ColNO2ColNameMap[LastPlayTimeCol], curtime)) {
+                QMessageBox::information(this, "", "数据库更新失败");
+                break;
+            }
+            model->item(index.row(), LastPlayTimeCol)->setText(curtime);
             QString exepath = model->item(index.row(), ExePathCol)->text();
 //            QProcess process;
             QFileInfo info(exepath);
@@ -190,6 +198,7 @@ void MainWindow::updateRow(QStringList content)
     items.append(new QStandardItem(content[DescribeCol]));
     items.append(new QStandardItem(content[ExePathCol]));
     items.append(new QStandardItem(content[CommentCol]));
+    items.append(new QStandardItem(content[LastPlayTimeCol]));
     model->appendRow(items);
 }
 
@@ -237,12 +246,13 @@ void MainWindow::slotOnNewAction()
     Data d;
     d.id = QUuid::createUuid().toString();
     d.name = newName;
+    d.lastplaytime = QDateTime::currentDateTime().toString(TimeFormat);
     if (!Database::instance()->update(d)) {
         QMessageBox::information(this, "", "数据库新增数据失败");
         return;
     }
     QStringList contents;
-    contents << d.id << "" << d.name << "" << "" << "" << "";
+    contents << d.id << "" << d.name << "" << "" << "" << "" << d.lastplaytime;
     updateRow(contents);
 }
 

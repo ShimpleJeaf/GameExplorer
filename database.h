@@ -13,6 +13,7 @@ public:
     QString exepath;
     QString describe;
     QString comment;
+    QString lastplaytime;
 };
 
 Q_DECLARE_METATYPE(Data)
